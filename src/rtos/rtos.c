@@ -588,6 +588,7 @@ int rtos_generic_stack_read(struct target *target,
 
 	if (stacking->stack_growth_direction == 1)
 		address -= stacking->stack_registers_size;
+
 	retval = target_read_buffer(target, address, stacking->stack_registers_size, stack_data);
 	if (retval != ERROR_OK) {
 		free(stack_data);
