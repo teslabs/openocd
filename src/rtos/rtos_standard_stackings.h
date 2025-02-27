@@ -19,6 +19,11 @@ extern const struct rtos_register_stacking rtos_standard_cortex_m4f_stacking;
 extern const struct rtos_register_stacking rtos_standard_cortex_m4f_fpu_stacking;
 extern const struct rtos_register_stacking rtos_standard_cortex_r4_stacking;
 extern const struct rtos_register_stacking rtos_standard_nds32_n1068_stacking;
+#ifdef FREERTOS_PEBBLE
+extern const struct rtos_register_stacking rtos_standard_Cortex_M3_Pebble_stacking;
+extern const struct rtos_register_stacking rtos_standard_Cortex_M4_Pebble_stacking;
+extern const struct rtos_register_stacking rtos_standard_Cortex_M4_Pebble_stacking_with_fp;
+#endif
 target_addr_t rtos_generic_stack_align8(struct target *target,
 	const uint8_t *stack_data, const struct rtos_register_stacking *stacking,
 	target_addr_t stack_ptr);

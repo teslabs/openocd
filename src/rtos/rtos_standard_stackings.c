@@ -12,6 +12,73 @@
 #include "rtos.h"
 #include "target/armv7m.h"
 
+/* comment to build for standard FreeRTOS */
+#define PEBBLE_FREERTOS
+
+#ifdef PEBBLE_FREERTOS
+/* Everything is offset 4 bytes from the standard arrangement because we also stack the control
+ * register, which contains the thread mode privilege. */
+static const struct stack_register_offset rtos_standard_Cortex_M3_Pebble_stack_offsets[ARMV7M_NUM_CORE_REGS] = {
+	{ ARMV7M_R0, 0x24, 32 },		/* r0   */
+	{ ARMV7M_R1, 0x28, 32 },		/* r1   */
+	{ ARMV7M_R2, 0x2c, 32 },		/* r2   */
+	{ ARMV7M_R3, 0x30, 32 },		/* r3   */
+	{ ARMV7M_R4, 0x04, 32 },		/* r4   */
+	{ ARMV7M_R5, 0x08, 32 },		/* r5   */
+	{ ARMV7M_R6, 0x0c, 32 },		/* r6   */
+	{ ARMV7M_R7, 0x10, 32 },		/* r7   */
+	{ ARMV7M_R8, 0x14, 32 },		/* r8   */
+	{ ARMV7M_R9, 0x18, 32 },		/* r9   */
+	{ ARMV7M_R10, 0x1c, 32 },		/* r10  */
+	{ ARMV7M_R11, 0x20, 32 },		/* r11  */
+	{ ARMV7M_R12, 0x34, 32 },		/* r12  */
+	{ ARMV7M_R13, -2,   32 },		/* sp   */
+	{ ARMV7M_R14, 0x38, 32 },		/* lr   */
+	{ ARMV7M_PC, 0x3c, 32 },		/* pc   */
+	{ ARMV7M_XPSR, 0x40, 32 },		/* xPSR */
+};
+
+static const struct stack_register_offset rtos_standard_Cortex_M4_Pebble_stack_offsets[ARMV7M_NUM_CORE_REGS] = {
+	{ ARMV7M_R0, 0x28, 32 }, /* r0 */
+	{ ARMV7M_R1, 0x2c, 32 }, /* r1 */
+	{ ARMV7M_R2, 0x30, 32 }, /* r2 */
+	{ ARMV7M_R3, 0x34, 32 }, /* r3 */
+	{ ARMV7M_R4, 0x04, 32 }, /* r4 */
+	{ ARMV7M_R5, 0x08, 32 }, /* r5 */
+	{ ARMV7M_R6, 0x0c, 32 }, /* r6 */
+	{ ARMV7M_R7, 0x10, 32 }, /* r7 */
+	{ ARMV7M_R8, 0x14, 32 }, /* r8 */
+	{ ARMV7M_R9, 0x18, 32 }, /* r9 */
+	{ ARMV7M_R10, 0x1c, 32 }, /* r10 */
+	{ ARMV7M_R11, 0x20, 32 }, /* r11 */
+	{ ARMV7M_R12, 0x38, 32 }, /* r12 */
+	{ ARMV7M_R13, -2,   32 }, /* sp */
+	{ ARMV7M_R14, 0x3c, 32 }, /* lr */
+	{ ARMV7M_PC, 0x40, 32 }, /* pc */
+	{ ARMV7M_XPSR, 0x44, 32 }, /* xPSR */
+};
+
+static const struct stack_register_offset rtos_standard_Cortex_M4_Pebble_stack_offsets_with_fp[ARMV7M_NUM_CORE_REGS] = {
+	{ ARMV7M_R0, 0x68, 32 }, /* r0 */
+	{ ARMV7M_R1, 0x6c, 32 }, /* r1 */
+	{ ARMV7M_R2, 0x70, 32 }, /* r2 */
+	{ ARMV7M_R3, 0x74, 32 }, /* r3 */
+	{ ARMV7M_R4, 0x04, 32 }, /* r4 */
+	{ ARMV7M_R5, 0x08, 32 }, /* r5 */
+	{ ARMV7M_R6, 0x0c, 32 }, /* r6 */
+	{ ARMV7M_R7, 0x10, 32 }, /* r7 */
+	{ ARMV7M_R8, 0x14, 32 }, /* r8 */
+	{ ARMV7M_R9, 0x18, 32 }, /* r9 */
+	{ ARMV7M_R10, 0x1c, 32 }, /* r10 */
+	{ ARMV7M_R11, 0x20, 32 }, /* r11 */
+	{ ARMV7M_R12, 0x78, 32 }, /* r12 */
+	{ ARMV7M_R13, -2,   32 }, /* sp */
+	{ ARMV7M_R14, 0x7c, 32 }, /* lr */
+	{ ARMV7M_PC, 0x80, 32 }, /* pc */
+	{ ARMV7M_XPSR, 0x84, 32 }, /* xPSR */
+};
+#endif
+
 static const struct stack_register_offset rtos_standard_cortex_m3_stack_offsets[ARMV7M_NUM_CORE_REGS] = {
 	{ ARMV7M_R0,   0x20, 32 },		/* r0   */
 	{ ARMV7M_R1,   0x24, 32 },		/* r1   */
@@ -236,6 +303,31 @@ static target_addr_t rtos_standard_cortex_m4f_fpu_stack_align(struct target *tar
 		stack_ptr, XPSR_OFFSET);
 }
 
+#ifdef FREERTOS_PEBBLE
+const struct rtos_register_stacking rtos_standard_Cortex_M3_Pebble_stacking = {
+	0x44,					/* stack_registers_size */
+	-1,						/* stack_growth_direction */
+	ARMV7M_NUM_CORE_REGS,	/* num_output_registers */
+	rtos_generic_stack_align8,						/* stack_alignment */
+	rtos_standard_Cortex_M3_Pebble_stack_offsets	/* register_offsets */
+};
+
+const struct rtos_register_stacking rtos_standard_Cortex_M4_Pebble_stacking = {
+	0x48,					/* stack_registers_size */
+	-1,						/* stack_growth_direction */
+	ARMV7M_NUM_CORE_REGS,	/* num_output_registers */
+	rtos_generic_stack_align8,						/* stack_alignment */
+	rtos_standard_Cortex_M4_Pebble_stack_offsets	/* register_offsets */
+};
+
+const struct rtos_register_stacking rtos_standard_Cortex_M4_Pebble_stacking_with_fp = {
+	0xD0,					/* stack_registers_size (FP adds 34 words: s0-s31, FPSCR, and Reserved */
+	-1,						/* stack_growth_direction */
+	ARMV7M_NUM_CORE_REGS,	/* num_output_registers */
+	rtos_generic_stack_align8,								/* stack_alignment */
+	rtos_standard_Cortex_M4_Pebble_stack_offsets_with_fp	/* register_offsets */
+};
+#endif
 
 const struct rtos_register_stacking rtos_standard_cortex_m3_stacking = {
 	.stack_registers_size = 0x40,
