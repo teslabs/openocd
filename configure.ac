@@ -1,5 +1,5 @@
 AC_PREREQ(2.64)
-AC_INIT([openocd], [0.9.0],
+AC_INIT([openocd], [0.9.0-pebble],
   [OpenOCD Mailing List <openocd-devel@lists.sourceforge.net>])
 AC_CONFIG_SRCDIR([src/openocd.c])
 
@@ -306,6 +306,10 @@ AC_ARG_ENABLE([wextra],
 AC_ARG_ENABLE([werror],
   AS_HELP_STRING([--disable-werror], [Do not treat warnings as errors]),
   [gcc_werror=$enableval], [gcc_werror=no])
+
+AC_ARG_ENABLE([freertos-pebble],
+  AS_HELP_STRING([--disable-freertos-pebble], [Do not build FreeRTOS plugin for Pebble flavor]),
+  [freertos_pebble=$enableval], [freertos_pebble=yes])
 
 # set default verbose options, overridden by following options
 debug_jtag_io=no
@@ -1260,6 +1264,10 @@ if test $gcc_warnings = yes; then
   CFLAGS="$CFLAGS $GCC_WARNINGS"
 fi
 
+if test "${freertos_pebble}" = yes; then
+  CFLAGS="$CFLAGS -DFREERTOS_PEBBLE"
+fi
+
 AC_CONFIG_FILES([
   Makefile
   src/Makefile
@@ -1303,6 +1311,12 @@ m4_foreach([adapter], [USB1_ADAPTERS, USB_ADAPTERS, USB0_ADAPTERS, HIDAPI_ADAPTE
 	esac
 ])
 echo
+
+if test "${freertos_pebble}" = yes; then
+	echo
+	echo FreeRTOS plugin built for Pebble!
+	echo
+fi
 
 if test $build_ft2232_libftdi = yes -o $build_ft2232_ftd2xx = yes; then
 	if test $enable_ftdi = no; then

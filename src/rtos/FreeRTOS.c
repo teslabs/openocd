@@ -31,7 +31,11 @@
 #include "helper/types.h"
 #include "rtos_standard_stackings.h"
 
+#ifndef FREERTOS_PEBBLE
 #define FREERTOS_MAX_PRIORITIES	63
+#else
+#define FREERTOS_MAX_PRIORITIES	5
+#endif
 
 #define FreeRTOS_STRUCT(int_type, ptr_type, list_prev_offset)
 
@@ -45,10 +49,17 @@ struct FreeRTOS_params {
 	const unsigned char list_elem_content_offset;
 	const unsigned char thread_stack_offset;
 	const unsigned char thread_name_offset;
+#ifdef FREERTOS_PEBBLE
+	const int stack_saved_r14_offset;
+#endif
 	const struct rtos_register_stacking *stacking_info;
+#ifdef FREERTOS_PEBBLE
+	const struct rtos_register_stacking *stacking_info_fp;
+#endif
 };
 
 static const struct FreeRTOS_params FreeRTOS_params_list[] = {
+#ifndef FREERTOS_PEBBLE
 	{
 	"cortex_m",			/* target_name */
 	4,						/* thread_count_width; */
@@ -85,6 +96,37 @@ static const struct FreeRTOS_params FreeRTOS_params_list[] = {
 	52,						/* thread_name_offset; */
 	&rtos_standard_NDS32_N1068_stacking,	/* stacking_info */
 	},
+#else
+	{
+	"stm32f4x.cpu",			/* target_name */
+	4,						/* thread_count_width; */
+	4,						/* pointer_width; */
+	16,						/* list_next_offset; */
+	20,						/* list_width; */
+	8,						/* list_elem_next_offset; */
+	12,						/* list_elem_content_offset */
+	0,						/* thread_stack_offset; */
+	88,						/* thread_name_offset; */
+	36,                     /* offset to exc return r14 from the thread's stack pointer */
+	&rtos_standard_Cortex_M4_Pebble_stacking,						/* stacking_info */
+	&rtos_standard_Cortex_M4_Pebble_stacking_with_fp,				/* stacking_info with FP*/
+	},
+
+	{
+	"stm32f2x.cpu",			/* target_name */
+	4,						/* thread_count_width; */
+	4,						/* pointer_width; */
+	16,						/* list_next_offset; */
+	20,						/* list_width; */
+	8,						/* list_elem_next_offset; */
+	12,						/* list_elem_content_offset */
+	0,						/* thread_stack_offset; */
+	84,						/* thread_name_offset; */
+	-1,                     /* no exc return r14 saved on thread's stack pointer */
+	&rtos_standard_Cortex_M3_Pebble_stacking,						/* stacking_info */
+	&rtos_standard_Cortex_M3_Pebble_stacking,						/* not used */
+	}
+#endif
 };
 
 #define FREERTOS_NUM_PARAMS ((int)(sizeof(FreeRTOS_params_list)/sizeof(struct FreeRTOS_params)))
@@ -116,7 +158,9 @@ enum FreeRTOS_symbol_values {
 	FreeRTOS_VAL_xTasksWaitingTermination = 7,
 	FreeRTOS_VAL_xSuspendedTaskList = 8,
 	FreeRTOS_VAL_uxCurrentNumberOfTasks = 9,
+#ifndef FREERTOS_PEBBLE
 	FreeRTOS_VAL_uxTopUsedPriority = 10,
+#endif
 };
 
 struct symbols {
@@ -135,7 +179,9 @@ static const struct symbols FreeRTOS_symbol_list[] = {
 	{ "xTasksWaitingTermination", true }, /* Only if INCLUDE_vTaskDelete */
 	{ "xSuspendedTaskList", true }, /* Only if INCLUDE_vTaskSuspend */
 	{ "uxCurrentNumberOfTasks", false },
+#ifndef FREERTOS_PEBBLE
 	{ "uxTopUsedPriority", true }, /* Unavailable since v7.5.3 */
+#endif
 	{ NULL, false }
 };
 
@@ -171,9 +217,11 @@ static int FreeRTOS_update_threads(struct rtos *rtos)
 			rtos->symbols[FreeRTOS_VAL_uxCurrentNumberOfTasks].address,
 			param->thread_count_width,
 			(uint8_t *)&thread_list_size);
+#ifndef FREERTOS_PEBBLE
 	LOG_DEBUG("FreeRTOS: Read uxCurrentNumberOfTasks at 0x%" PRIx64 ", value %d\r\n",
 										rtos->symbols[FreeRTOS_VAL_uxCurrentNumberOfTasks].address,
 										thread_list_size);
+#endif
 
 	if (retval != ERROR_OK) {
 		LOG_ERROR("Could not read FreeRTOS thread count from target");
@@ -192,9 +240,11 @@ static int FreeRTOS_update_threads(struct rtos *rtos)
 		LOG_ERROR("Error reading current thread in FreeRTOS thread list");
 		return retval;
 	}
+#ifndef FREERTOS_PEBBLE
 	LOG_DEBUG("FreeRTOS: Read pxCurrentTCB at 0x%" PRIx64 ", value 0x%" PRIx64 "\r\n",
 										rtos->symbols[FreeRTOS_VAL_pxCurrentTCB].address,
 										rtos->current_thread);
+#endif
 
 	if ((thread_list_size  == 0) || (rtos->current_thread == 0)) {
 		/* Either : No RTOS threads - there is always at least the current execution though */
@@ -230,6 +280,7 @@ static int FreeRTOS_update_threads(struct rtos *rtos)
 		}
 	}
 
+#ifndef FREERTOS_PEBBLE
 	/* Find out how many lists are needed to be read from pxReadyTasksLists, */
 	if (rtos->symbols[FreeRTOS_VAL_uxTopUsedPriority].address == 0) {
 		LOG_ERROR("FreeRTOS: uxTopUsedPriority is not defined, consult the OpenOCD manual for a work-around");
@@ -245,12 +296,23 @@ static int FreeRTOS_update_threads(struct rtos *rtos)
 	LOG_DEBUG("FreeRTOS: Read uxTopUsedPriority at 0x%" PRIx64 ", value %" PRId64 "\r\n",
 										rtos->symbols[FreeRTOS_VAL_uxTopUsedPriority].address,
 										max_used_priority);
+
 	if (max_used_priority > FREERTOS_MAX_PRIORITIES) {
 		LOG_ERROR("FreeRTOS maximum used priority is unreasonably big, not proceeding: %" PRId64 "",
 			max_used_priority);
 		return ERROR_FAIL;
 	}
+#endif
 
+#ifdef FREERTOS_PEBBLE
+	symbol_address_t *list_of_lists =
+		malloc(sizeof(symbol_address_t) *
+			(FREERTOS_MAX_PRIORITIES + 5));
+	if (!list_of_lists) {
+		LOG_ERROR("Error allocating memory for %d priorities", FREERTOS_MAX_PRIORITIES);
+		return ERROR_FAIL;
+	}
+#else
 	symbol_address_t *list_of_lists =
 		malloc(sizeof(symbol_address_t) *
 			(max_used_priority+1 + 5));
@@ -258,9 +320,14 @@ static int FreeRTOS_update_threads(struct rtos *rtos)
 		LOG_ERROR("Error allocating memory for %" PRId64 " priorities", max_used_priority);
 		return ERROR_FAIL;
 	}
+#endif
 
 	int num_lists;
+#ifdef FREERTOS_PEBBLE
+	for (num_lists = 0; num_lists <= (FREERTOS_MAX_PRIORITIES - 1); num_lists++)
+#else
 	for (num_lists = 0; num_lists <= max_used_priority; num_lists++)
+#endif
 		list_of_lists[num_lists] = rtos->symbols[FreeRTOS_VAL_pxReadyTasksLists].address +
 			num_lists * param->list_width;
 
@@ -285,8 +352,10 @@ static int FreeRTOS_update_threads(struct rtos *rtos)
 			free(list_of_lists);
 			return retval;
 		}
+#ifndef FREERTOS_PEBBLE
 		LOG_DEBUG("FreeRTOS: Read thread count for list %d at 0x%" PRIx64 ", value %" PRId64 "\r\n",
 										i, list_of_lists[i], list_thread_count);
+#endif
 
 		if (list_thread_count == 0)
 			continue;
@@ -303,8 +372,10 @@ static int FreeRTOS_update_threads(struct rtos *rtos)
 			free(list_of_lists);
 			return retval;
 		}
+#ifndef FREERTOS_PEBBLE
 		LOG_DEBUG("FreeRTOS: Read first item for list %d at 0x%" PRIx64 ", value 0x%" PRIx64 "\r\n",
 										i, list_of_lists[i] + param->list_next_offset, list_elem_ptr);
+#endif
 
 		while ((list_thread_count > 0) && (list_elem_ptr != 0) &&
 				(list_elem_ptr != prev_list_elem_ptr) &&
@@ -320,9 +391,11 @@ static int FreeRTOS_update_threads(struct rtos *rtos)
 				free(list_of_lists);
 				return retval;
 			}
+#ifndef FREERTOS_PEBBLE
 			LOG_DEBUG("FreeRTOS: Read Thread ID at 0x%" PRIx64 ", value 0x%" PRIx64 "\r\n",
 										list_elem_ptr + param->list_elem_content_offset,
 										rtos->thread_details[tasks_found].threadid);
+#endif
 
 			/* get thread name */
 
@@ -340,9 +413,11 @@ static int FreeRTOS_update_threads(struct rtos *rtos)
 				return retval;
 			}
 			tmp_str[FREERTOS_THREAD_NAME_STR_SIZE-1] = '\x00';
+#ifndef FREERTOS_PEBBLE
 			LOG_DEBUG("FreeRTOS: Read Thread Name at 0x%" PRIx64 ", value \"%s\"\r\n",
 										rtos->thread_details[tasks_found].threadid + param->thread_name_offset,
 										tmp_str);
+#endif
 
 			if (tmp_str[0] == '\x00')
 				strcpy(tmp_str, "No Name");
@@ -376,9 +451,11 @@ static int FreeRTOS_update_threads(struct rtos *rtos)
 				free(list_of_lists);
 				return retval;
 			}
+#ifndef FREERTOS_PEBBLE
 			LOG_DEBUG("FreeRTOS: Read next thread location at 0x%" PRIx64 ", value 0x%" PRIx64 "\r\n",
 										prev_list_elem_ptr + param->list_elem_next_offset,
 										list_elem_ptr);
+#endif
 		}
 	}
 
@@ -392,6 +469,9 @@ static int FreeRTOS_get_thread_reg_list(struct rtos *rtos, int64_t thread_id, ch
 	int retval;
 	const struct FreeRTOS_params *param;
 	int64_t stack_ptr = 0;
+#ifdef FREERTOS_PEBBLE
+	const struct rtos_register_stacking *stacking_info_p;
+#endif
 
 	*hex_reg_list = NULL;
 	if (rtos == NULL)
@@ -410,15 +490,43 @@ static int FreeRTOS_get_thread_reg_list(struct rtos *rtos, int64_t thread_id, ch
 			thread_id + param->thread_stack_offset,
 			param->pointer_width,
 			(uint8_t *)&stack_ptr);
+
 	if (retval != ERROR_OK) {
 		LOG_ERROR("Error reading stack frame from FreeRTOS thread");
 		return retval;
 	}
+#ifndef FREERTOS_PEBBLE
 	LOG_DEBUG("FreeRTOS: Read stack pointer at 0x%" PRIx64 ", value 0x%" PRIx64 "\r\n",
 										thread_id + param->thread_stack_offset,
 										stack_ptr);
+#endif
 
+#ifdef FREERTOS_PEBBLE
+	stacking_info_p = param->stacking_info;
+
+	// See if floating point is being used by checking bit 4 of the saved r14 on the stack
+	if (param->stack_saved_r14_offset > 0) {
+		int64_t exc_ret_r14;
+		retval = target_read_buffer(rtos->target,
+				stack_ptr + param->stack_saved_r14_offset,
+				param->pointer_width,
+				(uint8_t *)&exc_ret_r14);
+
+		if (retval != ERROR_OK) {
+			LOG_ERROR("Error reading exception return r14 frame from FreeRTOS thread");
+			return retval;
+		}
+
+		if ((exc_ret_r14 & 0x10) == 0) {
+			// if bit 4 on the exception return r14 is 0, it means we have FP registers stacked
+			stacking_info_p = param->stacking_info_fp;
+		}
+	}
+
+	return rtos_generic_stack_read(rtos->target, stacking_info_p, stack_ptr, hex_reg_list);
+#else
 	return rtos_generic_stack_read(rtos->target, param->stacking_info, stack_ptr, hex_reg_list);
+#endif
 }
 
 static int FreeRTOS_get_symbol_list_to_lookup(symbol_table_elem_t *symbol_list[])
@@ -496,7 +604,11 @@ static int FreeRTOS_create(struct target *target)
 {
 	int i = 0;
 	while ((i < FREERTOS_NUM_PARAMS) &&
+#ifdef FREERTOS_PEBBLE
+			(0 != strcmp(FreeRTOS_params_list[i].target_name, target->cmd_name))) {
+#else
 			(0 != strcmp(FreeRTOS_params_list[i].target_name, target->type->name))) {
+#endif
 		i++;
 	}
 	if (i >= FREERTOS_NUM_PARAMS) {

@@ -30,5 +30,10 @@
 extern const struct rtos_register_stacking rtos_standard_Cortex_M3_stacking;
 extern const struct rtos_register_stacking rtos_standard_Cortex_R4_stacking;
 extern const struct rtos_register_stacking rtos_standard_NDS32_N1068_stacking;
+#ifdef FREERTOS_PEBBLE
+extern const struct rtos_register_stacking rtos_standard_Cortex_M3_Pebble_stacking;
+extern const struct rtos_register_stacking rtos_standard_Cortex_M4_Pebble_stacking;
+extern const struct rtos_register_stacking rtos_standard_Cortex_M4_Pebble_stacking_with_fp;
+#endif
 
 #endif	/* ifndef INCLUDED_RTOS_STANDARD_STACKINGS_H_ */
