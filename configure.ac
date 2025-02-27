@@ -1,5 +1,5 @@
 AC_PREREQ(2.64)
-AC_INIT([openocd], [0.10.0],
+AC_INIT([openocd], [0.10.0-pebble],
   [OpenOCD Mailing List <openocd-devel@lists.sourceforge.net>])
 AC_CONFIG_SRCDIR([src/openocd.c])
 
@@ -165,6 +165,10 @@ AC_ARG_ENABLE([wextra],
 AC_ARG_ENABLE([werror],
   AS_HELP_STRING([--disable-werror], [Do not treat warnings as errors]),
   [gcc_werror=$enableval], [gcc_werror=no])
+
+AC_ARG_ENABLE([freertos-pebble],
+  AS_HELP_STRING([--disable-freertos-pebble], [Do not build FreeRTOS plugin for Pebble flavor]),
+  [freertos_pebble=$enableval], [freertos_pebble=yes])
 
 # set default verbose options, overridden by following options
 debug_jtag_io=no
@@ -746,6 +750,10 @@ AS_IF([test "x$gcc_warnings" = "xyes"], [
   AC_SUBST([GCC_WARNINGS], [$GCC_WARNINGS])
 ])
 
+if test "${freertos_pebble}" = yes; then
+  CFLAGS="$CFLAGS -DFREERTOS_PEBBLE"
+fi
+
 AC_CONFIG_FILES([
   Makefile
 ])
@@ -793,3 +801,9 @@ AS_IF([test "x$build_ioutil" = "xyes"], [
   echo 'OpenOCD Mailing List.'
   echo
 ])
+
+if test "${freertos_pebble}" = yes; then
+	echo
+	echo FreeRTOS plugin built for Pebble!
+	echo
+fi
