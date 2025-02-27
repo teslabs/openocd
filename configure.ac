@@ -164,7 +164,7 @@ AC_ARG_ENABLE([wextra],
 
 AC_ARG_ENABLE([werror],
   AS_HELP_STRING([--disable-werror], [Do not treat warnings as errors]),
-  [gcc_werror=$enableval], [gcc_werror=$gcc_warnings])
+  [gcc_werror=$enableval], [gcc_werror=no])
 
 # set default verbose options, overridden by following options
 debug_jtag_io=no
